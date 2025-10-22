@@ -1,0 +1,53 @@
+include(CMakeParseArguments)
+
+function(cpp_target_sanitizers target)
+  if(NOT TARGET ${target})
+    message(FATAL_ERROR "cpp_target_sanitizers: Target ${target} not found")
+  endif()
+
+  if(MSVC)
+    return()
+  endif()
+
+  set(options ASAN UBSAN TSAN LSAN DEFAULT)
+  set(oneValueArgs)
+  set(multiValueArgs)
+  cmake_parse_arguments(SAN "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
+
+  set(selected)
+  if(SAN_DEFAULT)
+    list(APPEND selected address undefined)
+  else()
+    if(SAN_ASAN)
+      list(APPEND selected address)
+    endif()
+    if(SAN_UBSAN)
+      list(APPEND selected undefined)
+    endif()
+    if(SAN_TSAN)
+      list(APPEND selected thread)
+    endif()
+    if(SAN_LSAN)
+      list(APPEND selected leak)
+    endif()
+  endif()
+
+  if(NOT selected)
+    return()
+  endif()
+
+  set(flags)
+  foreach(kind IN LISTS selected)
+    list(APPEND flags "-fsanitize=${kind}")
+  endforeach()
+
+  target_compile_options(${target} PRIVATE ${flags})
+  target_link_options(${target} PRIVATE ${flags})
+
+  # Helpful runtime flags for ASAN/UBSAN
+  if("address" IN_LIST selected)
+    if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
+      target_compile_options(${target} PRIVATE -fno-omit-frame-pointer)
+    endif()
+  endif()
+endfunction()

@@ -1,0 +1,56 @@
+include(CMakeParseArguments)
+
+function(cpp_enable_testing)
+  enable_testing()
+endfunction()
+
+function(cpp_use_catch2)
+  include(CMakePP/CPM)
+  cpp_cpm_add_package(NAME Catch2 GITHUB_REPOSITORY catchorg/Catch2 VERSION 3.5.2 OPTIONS "CATCH_INSTALL_DOCS OFF" "CATCH_INSTALL_EXTRAS OFF")
+endfunction()
+
+function(cpp_use_gtest)
+  include(CMakePP/CPM)
+  cpp_cpm_add_package(NAME GTest GITHUB_REPOSITORY google/googletest VERSION 1.14.0 OPTIONS "INSTALL_GTEST OFF")
+endfunction()
+
+function(cpp_add_test name)
+  set(options)
+  set(oneValueArgs FRAMEWORK)
+  set(multiValueArgs SOURCES LINK)
+  cmake_parse_arguments(T "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
+
+  if(NOT T_SOURCES)
+    message(FATAL_ERROR "cpp_add_test(${name}): SOURCES are required")
+  endif()
+
+  # Choose framework: arg > global
+  set(_fw ${CMAKEPP_TEST_FRAMEWORK})
+  if(T_FRAMEWORK)
+    set(_fw ${T_FRAMEWORK})
+  endif()
+  string(TOLOWER "${_fw}" _fw)
+
+  add_executable(${name} ${T_SOURCES})
+  _cpp_apply_common(${name})
+
+  if(_fw STREQUAL "catch2")
+    cpp_use_catch2()
+    if(T_LINK)
+      target_link_libraries(${name} PRIVATE ${T_LINK} Catch2::Catch2WithMain)
+    else()
+      target_link_libraries(${name} PRIVATE Catch2::Catch2WithMain)
+    endif()
+  elseif(_fw STREQUAL "gtest")
+    cpp_use_gtest()
+    if(T_LINK)
+      target_link_libraries(${name} PRIVATE ${T_LINK} GTest::gtest_main)
+    else()
+      target_link_libraries(${name} PRIVATE GTest::gtest_main)
+    endif()
+  else()
+    message(FATAL_ERROR "Unsupported test framework: ${_fw}. Use 'catch2' or 'gtest'.")
+  endif()
+
+  add_test(NAME ${name} COMMAND ${name})
+endfunction()
